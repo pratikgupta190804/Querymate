@@ -1,0 +1,23 @@
+# Ignore env files
+.env
+.env.local
+.env.development
+.env.production
+
+# Node.js (frontend)
+node_modules/
+dist/
+build/
+
+# Java/Spring Boot (backend)
+target/
+*.class
+*.jar
+*.war
+*.log
+*.iml
+
+# IntelliJ/VSCode
+.idea/
+.vscode/
+*.swp

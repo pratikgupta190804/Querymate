@@ -1,20 +1,27 @@
 package com.querymate.QueryMate.controller;
 
-import com.querymate.QueryMate.dto.ChatMessageDto;
-import com.querymate.QueryMate.repo.ProjectRepository;
-import com.querymate.QueryMate.service.ChatService;
-import com.querymate.QueryMate.service.OpenAIService;
-import com.querymate.QueryMate.service.SchemaService;
-import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.tags.Tag;
+import java.util.List;
+import java.util.Map;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 
-import java.util.List;
-import java.util.Map;
+import com.querymate.QueryMate.dto.ChatMessageDto;
+import com.querymate.QueryMate.repo.ProjectRepository;
+import com.querymate.QueryMate.service.AiService;
+import com.querymate.QueryMate.service.ChatService;
+import com.querymate.QueryMate.service.SchemaService;
+
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 
 @RestController
 @RequestMapping("/api/projects/{projectId}/chat")
@@ -22,17 +29,17 @@ import java.util.Map;
 public class ChatController {
 
     private final ChatService chatService;
-    private final OpenAIService openAIService;
+    private final AiService aiService;
     private final SchemaService schemaService;
     private final ProjectRepository projectRepository;
 
     @Autowired
     public ChatController(ChatService chatService,
-                          OpenAIService openAIService,
+                          AiService aiService,
                           SchemaService schemaService,
                           ProjectRepository projectRepository) {
         this.chatService = chatService;
-        this.openAIService = openAIService;
+        this.aiService = aiService;
         this.schemaService = schemaService;
         this.projectRepository = projectRepository;
     }
@@ -43,7 +50,7 @@ public class ChatController {
     @PostMapping
     @Operation(
             summary = "Ask question in natural language",
-            description = "Submit a natural language message. The system generates a SQL query using OpenAI, executes it on the connected database, and returns the result along with the full chat history."
+            description = "Submit a natural language message. The system generates a SQL query using Ollama Phi3, executes it on the connected database, and returns the result along with the full chat history."
     )
     public ResponseEntity<List<ChatMessageDto>> sendMessage(
             @PathVariable Long projectId,

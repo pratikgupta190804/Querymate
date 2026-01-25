@@ -1,5 +1,5 @@
 package com.querymate.QueryMate.service;
 
-public interface OpenAIService {
+public interface AiService {
     String generateSQL(String userMessage, String schemaText, String dbType);
 }

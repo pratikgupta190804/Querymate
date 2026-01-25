@@ -1,15 +1,20 @@
 package com.querymate.QueryMate.service;
 
+import java.sql.Connection;
+import java.sql.DatabaseMetaData;
+import java.sql.DriverManager;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.util.HashSet;
+import java.util.Set;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
 import com.querymate.QueryMate.entity.Project;
 import com.querymate.QueryMate.exception.ResourceNotFoundException;
 import com.querymate.QueryMate.repo.ProjectRepository;
 import com.querymate.QueryMate.utils.CryptoUtils;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Service;
-
-import java.sql.*;
-import java.util.HashSet;
-import java.util.Set;
 
 @Service
 public class SchemaService {
@@ -28,9 +33,17 @@ public class SchemaService {
         Project project = projectRepository.findById(projectId)
                 .orElseThrow(() -> new ResourceNotFoundException("Project", "id", projectId));
 
-        // Step 2: Decrypt credentials
-        String username = cryptoUtils.decrypt(project.getDbUsername());
-        String password = cryptoUtils.decrypt(project.getDbPassword());
+        // Step 2: Decrypt credentials with error handling for legacy unencrypted data
+        String username;
+        String password;
+        try {
+            username = cryptoUtils.decrypt(project.getDbUsername());
+            password = cryptoUtils.decrypt(project.getDbPassword());
+        } catch (Exception e) {
+            // If decryption fails, use unencrypted values
+            username = project.getDbUsername();
+            password = project.getDbPassword();
+        }
 
         // Step 3: Build JDBC URL
         String url = "jdbc:" + project.getDbType().toLowerCase() + "://" +

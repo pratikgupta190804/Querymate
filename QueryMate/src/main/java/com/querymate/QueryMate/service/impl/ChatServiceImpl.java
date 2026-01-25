@@ -1,6 +1,15 @@
 package com.querymate.QueryMate.service.impl;
 
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
 import com.querymate.QueryMate.dto.ChatMessageDto;
+import com.querymate.QueryMate.dto.QueryIntent;
 import com.querymate.QueryMate.entity.ChatMessage;
 import com.querymate.QueryMate.entity.Project;
 import com.querymate.QueryMate.exception.ResourceNotFoundException;
@@ -8,14 +17,9 @@ import com.querymate.QueryMate.repo.ChatMessageRepository;
 import com.querymate.QueryMate.repo.ProjectRepository;
 import com.querymate.QueryMate.service.ChatService;
 import com.querymate.QueryMate.service.DynamicQueryExecutorService;
-import com.querymate.QueryMate.service.OpenAIService;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Service;
-
-import java.time.LocalDateTime;
-import java.util.List;
-import java.util.Map;
-import java.util.stream.Collectors;
+import com.querymate.QueryMate.service.IntentClassifierService;
+import com.querymate.QueryMate.service.IntentValidatorService;
+import com.querymate.QueryMate.service.SqlBuilderService;
 
 @Service
 public class ChatServiceImpl implements ChatService {
@@ -24,19 +28,24 @@ public class ChatServiceImpl implements ChatService {
 
     private final ChatMessageRepository chatMessageRepository;
     private final ProjectRepository projectRepository;
-    private final OpenAIService openAIService;
+    private final IntentClassifierService intentClassifierService;
+    private final IntentValidatorService intentValidatorService;
+    private final SqlBuilderService sqlBuilderService;
     private final DynamicQueryExecutorService queryExecutorService;
 
     @Autowired
     public ChatServiceImpl(
             ChatMessageRepository chatMessageRepository,
             ProjectRepository projectRepository,
-            OpenAIService openAIService,
-            DynamicQueryExecutorService queryExecutorService
-    ) {
+            IntentClassifierService intentClassifierService,
+            IntentValidatorService intentValidatorService,
+            SqlBuilderService sqlBuilderService,
+            DynamicQueryExecutorService queryExecutorService) {
         this.chatMessageRepository = chatMessageRepository;
         this.projectRepository = projectRepository;
-        this.openAIService = openAIService;
+        this.intentClassifierService = intentClassifierService;
+        this.intentValidatorService = intentValidatorService;
+        this.sqlBuilderService = sqlBuilderService;
         this.queryExecutorService = queryExecutorService;
     }
 
@@ -44,7 +53,6 @@ public class ChatServiceImpl implements ChatService {
         String lower = input.toLowerCase();
         return DISALLOWED_KEYWORDS.stream().anyMatch(lower::contains);
     }
-
 
     @Override
     public ChatMessageDto saveMessage(Long projectId, String sender, String role, String content) {
@@ -88,14 +96,38 @@ public class ChatServiceImpl implements ChatService {
             return List.of(userMessage, resultMessage);
         }
 
-        // 3️⃣ Generate SQL from OpenAI
-        String fullResponse = openAIService.generateSQL(userInput, schema, project.getDbType());
-        ChatMessageDto sqlMessage = saveMessage(projectId, "system", "sql", fullResponse);
+        // 3️⃣ NEW ARCHITECTURE: Intent Classification (AI returns JSON only)
+        QueryIntent intent;
+        try {
+            intent = intentClassifierService.classifyIntent(userInput, schema);
+        } catch (Exception e) {
+            String error = "❌ Failed to understand query intent: " + e.getMessage();
+            ChatMessageDto errorMessage = saveMessage(projectId, "system", "result", error);
+            return List.of(userMessage, errorMessage);
+        }
 
-        // 4️⃣ Extract raw SQL
-        String sqlQuery = extractSQLFromCodeBlock(fullResponse);
+        // 4️⃣ Validate Intent (Check if tables/columns exist)
+        QueryIntent validatedIntent = intentValidatorService.validate(intent, schema);
+        if (!validatedIntent.isPossible()) {
+            ChatMessageDto errorMessage = saveMessage(projectId, "system", "result", 
+                "❌ Invalid query: " + validatedIntent.getReason());
+            return List.of(userMessage, errorMessage);
+        }
 
-        // 5️⃣ Execute the SQL query
+        // 5️⃣ Build SQL (Deterministic code, no AI hallucination)
+        String sqlQuery;
+        try {
+            sqlQuery = sqlBuilderService.buildSQL(validatedIntent);
+        } catch (Exception e) {
+            String error = "❌ Failed to build SQL: " + e.getMessage();
+            ChatMessageDto errorMessage = saveMessage(projectId, "system", "result", error);
+            return List.of(userMessage, errorMessage);
+        }
+
+        // Save generated SQL for user to see
+        ChatMessageDto sqlMessage = saveMessage(projectId, "system", "sql", sqlQuery);
+
+        // 6️⃣ Execute the SQL query
         String resultJson;
         try {
             List<Map<String, Object>> result = queryExecutorService.executeSQL(project, sqlQuery);
@@ -104,21 +136,10 @@ public class ChatServiceImpl implements ChatService {
             resultJson = "{\"error\": \"" + e.getMessage().replace("\"", "'") + "\"}";
         }
 
-        // 6️⃣ Save execution result
+        // 7️⃣ Save execution result
         ChatMessageDto resultMessage = saveMessage(projectId, "system", "result", resultJson);
 
         return List.of(userMessage, sqlMessage, resultMessage);
-    }
-
-    private String extractSQLFromCodeBlock(String content) {
-        if (content.contains("```sql")) {
-            int start = content.indexOf("```sql") + 6;
-            int end = content.indexOf("```", start);
-            if (end > start) {
-                return content.substring(start, end).trim();
-            }
-        }
-        return content.trim(); // fallback to raw content if not formatted
     }
 
     private ChatMessageDto mapToDto(ChatMessage message) {

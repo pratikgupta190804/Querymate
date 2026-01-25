@@ -20,22 +20,32 @@ const ChatSection = ({ projectId }) => {
   const handleSend = async () => {
     if (!input.trim()) return;
 
-    const userMessage = {
-      messageId: Date.now(),
-      sender: "user",
-      content: input,
-    };
-
-    setMessages((prev) => [...prev, userMessage]);
     setInput("");
     setLoading(true);
 
     try {
       const res = await sendChatMessage(projectId, input);
-      const botReply = res.data;
-      setMessages((prev) => [...prev, botReply]);
+      // Backend returns an array of messages (user query, SQL, result)
+      const newMessages = res.data;
+
+      if (Array.isArray(newMessages)) {
+        setMessages((prev) => [...prev, ...newMessages]);
+      } else {
+        setMessages((prev) => [...prev, newMessages]);
+      }
     } catch (err) {
       console.error("Failed to send message", err);
+      // Show error message
+      setMessages((prev) => [
+        ...prev,
+        {
+          messageId: Date.now(),
+          sender: "system",
+          role: "error",
+          content: "❌ Failed to send message. Please try again.",
+          timestamp: new Date().toISOString(),
+        },
+      ]);
     }
 
     setLoading(false);
@@ -57,12 +67,34 @@ const ChatSection = ({ projectId }) => {
       <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50 border rounded">
         {messages.map((msg) => (
           <div
-            key={msg.messageId}
+            key={msg.messageId || `msg-${msg.timestamp}-${msg.role}`}
             className={`p-3 rounded-md max-w-[80%] ${
-              msg.sender === "user" ? "bg-blue-100 ml-auto" : "bg-gray-200"
+              msg.sender === "user"
+                ? "bg-blue-100 ml-auto"
+                : msg.role === "sql"
+                  ? "bg-green-100"
+                  : msg.role === "result"
+                    ? "bg-yellow-50"
+                    : "bg-gray-200"
             }`}
           >
-            <strong>{msg.sender === "user" ? "You" : "AI"}:</strong> {msg.content}
+            <strong className="block mb-1">
+              {msg.sender === "user"
+                ? "You"
+                : msg.role === "sql"
+                  ? "Generated SQL"
+                  : msg.role === "result"
+                    ? "Query Result"
+                    : "System"}
+              :
+            </strong>
+            <div className={msg.role === "sql" ? "font-mono text-sm" : ""}>
+              {msg.role === "result" ? (
+                <pre className="whitespace-pre-wrap text-sm">{msg.content}</pre>
+              ) : (
+                msg.content
+              )}
+            </div>
           </div>
         ))}
         <div ref={bottomRef} />

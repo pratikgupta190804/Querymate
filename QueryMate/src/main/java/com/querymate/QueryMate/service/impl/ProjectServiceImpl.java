@@ -1,5 +1,12 @@
 package com.querymate.QueryMate.service.impl;
 
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.stream.Collectors;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
 import com.querymate.QueryMate.dto.ProjectDto;
 import com.querymate.QueryMate.entity.Project;
 import com.querymate.QueryMate.entity.User;
@@ -9,12 +16,6 @@ import com.querymate.QueryMate.repo.UserRepository;
 import com.querymate.QueryMate.service.ProjectService;
 import com.querymate.QueryMate.service.SchemaService;
 import com.querymate.QueryMate.utils.CryptoUtils;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Service;
-
-import java.time.LocalDateTime;
-import java.util.List;
-import java.util.stream.Collectors;
 
 @Service
 public class ProjectServiceImpl implements ProjectService {
@@ -41,18 +42,18 @@ public class ProjectServiceImpl implements ProjectService {
         project.setUser(user);
         project.setCreatedAt(LocalDateTime.now());
 
-        // 🔐 Decrypt credentials to connect to DB
-        String username = cryptoUtils.decrypt(project.getDbUsername());
-        String password = cryptoUtils.decrypt(project.getDbPassword());
+        // Save project first to generate the ID
+        Project saved = projectRepository.save(project);
 
-        // 🌐 Attempt to extract schema from the actual database
-        String extractedSchema = schemaService.getSchemaForProject(project.getProjectId());
+        // 🌐 Now extract schema from the actual database (after project has an ID)
+        String extractedSchema = schemaService.getSchemaForProject(saved.getProjectId());
 
         // Always set schemaText to whatever message was returned
-        project.setSchemaText(extractedSchema != null ? extractedSchema.trim() : "⚠️ Failed to retrieve schema.");
+        saved.setSchemaText(extractedSchema != null ? extractedSchema.trim() : "⚠️ Failed to retrieve schema.");
 
-        Project saved = projectRepository.save(project);
-        return mapToDto(saved);
+        // Save again with schema
+        Project updated = projectRepository.save(saved);
+        return mapToDto(updated);
     }
 
     @Override
@@ -113,9 +114,15 @@ public class ProjectServiceImpl implements ProjectService {
         dto.setDbHost(project.getDbHost());
         dto.setDbPort(project.getDbPort());
 
-        // ✅ Decrypt sensitive fields
-        dto.setDbUsername(cryptoUtils.decrypt(project.getDbUsername()));
-        dto.setDbPassword(cryptoUtils.decrypt(project.getDbPassword()));
+        // ✅ Decrypt sensitive fields (with error handling for legacy unencrypted data)
+        try {
+            dto.setDbUsername(cryptoUtils.decrypt(project.getDbUsername()));
+            dto.setDbPassword(cryptoUtils.decrypt(project.getDbPassword()));
+        } catch (Exception e) {
+            // If decryption fails, the data might not be encrypted - use as is
+            dto.setDbUsername(project.getDbUsername());
+            dto.setDbPassword(project.getDbPassword());
+        }
 
         dto.setDbName(project.getDbName());
         dto.setCreatedAt(project.getCreatedAt());

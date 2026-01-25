@@ -1,14 +1,16 @@
 package com.querymate.QueryMate.service;
 
-import com.querymate.QueryMate.entity.Project;
-import com.querymate.QueryMate.utils.CryptoUtils;
+import java.util.List;
+import java.util.Map;
+
+import javax.sql.DataSource;
+
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import org.springframework.stereotype.Service;
 
-import javax.sql.DataSource;
-import java.util.List;
-import java.util.Map;
+import com.querymate.QueryMate.entity.Project;
+import com.querymate.QueryMate.utils.CryptoUtils;
 
 @Service
 public class DynamicQueryExecutorService {
@@ -57,8 +59,16 @@ public class DynamicQueryExecutorService {
         }
 
         dataSource.setUrl(url);
-        dataSource.setUsername(cryptoUtils.decrypt(project.getDbUsername()));
-        dataSource.setPassword(cryptoUtils.decrypt(project.getDbPassword()));
+        
+        // Decrypt credentials with error handling for legacy unencrypted data
+        try {
+            dataSource.setUsername(cryptoUtils.decrypt(project.getDbUsername()));
+            dataSource.setPassword(cryptoUtils.decrypt(project.getDbPassword()));
+        } catch (Exception e) {
+            // If decryption fails, use unencrypted values
+            dataSource.setUsername(project.getDbUsername());
+            dataSource.setPassword(project.getDbPassword());
+        }
 
         return dataSource;
     }

@@ -9,6 +9,9 @@ public class ProjectDto {
     private String description;
 
     private String dbType;
+    private String connectionType; // "local" or "cloud"
+    private String cloudConnectionString;
+    private String cloudProvider;
     private String dbHost;
     private Integer dbPort;
     private String dbUsername;
@@ -107,5 +110,29 @@ public class ProjectDto {
 
     public void setUserId(Long userId) {
         this.userId = userId;
+    }
+
+    public String getConnectionType() {
+        return connectionType;
+    }
+
+    public void setConnectionType(String connectionType) {
+        this.connectionType = connectionType;
+    }
+
+    public String getCloudConnectionString() {
+        return cloudConnectionString;
+    }
+
+    public void setCloudConnectionString(String cloudConnectionString) {
+        this.cloudConnectionString = cloudConnectionString;
+    }
+
+    public String getCloudProvider() {
+        return cloudProvider;
+    }
+
+    public void setCloudProvider(String cloudProvider) {
+        this.cloudProvider = cloudProvider;
     }
 }

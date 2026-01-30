@@ -1,9 +1,20 @@
 package com.querymate.QueryMate.entity;
 
-import jakarta.persistence.*;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+
+import jakarta.persistence.CascadeType;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.OneToMany;
+import jakarta.persistence.Table;
 
 @Entity
 @Table(name = "projects")
@@ -20,8 +31,20 @@ public class Project {
 
     private String dbType; // e.g. PostgreSQL, MySQL, MongoDB
 
+    // Connection type: "local" or "cloud"
+    private String connectionType;
+
+    // For cloud databases - full connection string/URI
+    @Column(length = 1000)
+    private String cloudConnectionString;
+
+    // Cloud database provider (AWS RDS, Azure SQL, Google Cloud SQL, MongoDB Atlas, etc.)
+    private String cloudProvider;
+
+    // For local databases - these are optional now (nullable for cloud databases)
     private String dbHost;
 
+    @Column(nullable = true)
     private Integer dbPort;
 
     private String dbUsername;
@@ -151,5 +174,29 @@ public class Project {
 
     public void setSchemaText(String schemaText) {
         this.schemaText = schemaText;
+    }
+
+    public String getConnectionType() {
+        return connectionType;
+    }
+
+    public void setConnectionType(String connectionType) {
+        this.connectionType = connectionType;
+    }
+
+    public String getCloudConnectionString() {
+        return cloudConnectionString;
+    }
+
+    public void setCloudConnectionString(String cloudConnectionString) {
+        this.cloudConnectionString = cloudConnectionString;
+    }
+
+    public String getCloudProvider() {
+        return cloudProvider;
+    }
+
+    public void setCloudProvider(String cloudProvider) {
+        this.cloudProvider = cloudProvider;
     }
 }

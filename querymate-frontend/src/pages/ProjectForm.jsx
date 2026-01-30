@@ -6,6 +6,9 @@ const ProjectForm = ({ initialData = null, onSuccess, onCancel }) => {
     projectName: "",
     description: "",
     dbType: "PostgreSQL",
+    connectionType: "local", // "local" or "cloud"
+    cloudProvider: "",
+    cloudConnectionString: "",
     dbHost: "",
     dbPort: "",
     dbUsername: "",
@@ -26,10 +29,24 @@ const ProjectForm = ({ initialData = null, onSuccess, onCancel }) => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      if (initialData?.projectId) {
-        await updateProject(initialData.projectId, formData);
+      // Clean up data based on connection type
+      const submitData = { ...formData };
+
+      if (submitData.connectionType === "cloud") {
+        // For cloud connections, set local fields to null
+        submitData.dbHost = null;
+        submitData.dbPort = null;
+        submitData.dbName = null;
       } else {
-        await createProject(formData);
+        // For local connections, set cloud fields to null
+        submitData.cloudConnectionString = null;
+        submitData.cloudProvider = null;
+      }
+
+      if (initialData?.projectId) {
+        await updateProject(initialData.projectId, submitData);
+      } else {
+        await createProject(submitData);
       }
       onSuccess();
     } catch (err) {
@@ -63,6 +80,24 @@ const ProjectForm = ({ initialData = null, onSuccess, onCancel }) => {
             className="w-full border p-2 rounded"
             required
           />
+
+          {/* Connection Type Selection */}
+          <div>
+            <label className="block text-sm font-medium mb-1">
+              Connection Type
+            </label>
+            <select
+              name="connectionType"
+              value={formData.connectionType}
+              onChange={handleChange}
+              className="w-full border p-2 rounded"
+              required
+            >
+              <option value="local">Local Database</option>
+              <option value="cloud">Cloud Database</option>
+            </select>
+          </div>
+
           <select
             name="dbType"
             value={formData.dbType}
@@ -72,48 +107,118 @@ const ProjectForm = ({ initialData = null, onSuccess, onCancel }) => {
           >
             <option value="PostgreSQL">PostgreSQL</option>
             <option value="MySQL">MySQL</option>
+            <option value="MongoDB">MongoDB</option>
+            <option value="SQLServer">SQL Server</option>
           </select>
-          <input
-            name="dbHost"
-            placeholder="DB Host"
-            value={formData.dbHost}
-            onChange={handleChange}
-            className="w-full border p-2 rounded"
-            required
-          />
-          <input
-            name="dbPort"
-            placeholder="DB Port"
-            value={formData.dbPort}
-            onChange={handleChange}
-            className="w-full border p-2 rounded"
-            required
-          />
-          <input
-            name="dbUsername"
-            placeholder="DB Username"
-            value={formData.dbUsername}
-            onChange={handleChange}
-            className="w-full border p-2 rounded"
-            required
-          />
-          <input
-            name="dbPassword"
-            type="password"
-            placeholder="DB Password"
-            value={formData.dbPassword}
-            onChange={handleChange}
-            className="w-full border p-2 rounded"
-            required
-          />
-          <input
-            name="dbName"
-            placeholder="DB Name"
-            value={formData.dbName}
-            onChange={handleChange}
-            className="w-full border p-2 rounded"
-            required
-          />
+
+          {/* Cloud Database Options */}
+          {formData.connectionType === "cloud" && (
+            <>
+              <div>
+                <label className="block text-sm font-medium mb-1">
+                  Cloud Provider
+                </label>
+                <select
+                  name="cloudProvider"
+                  value={formData.cloudProvider}
+                  onChange={handleChange}
+                  className="w-full border p-2 rounded"
+                  required
+                >
+                  <option value="">Select Provider</option>
+                  <option value="AWS RDS">AWS RDS</option>
+                  <option value="Azure SQL">Azure SQL Database</option>
+                  <option value="Google Cloud SQL">Google Cloud SQL</option>
+                  <option value="MongoDB Atlas">MongoDB Atlas</option>
+                  <option value="Azure Cosmos DB">Azure Cosmos DB</option>
+                  <option value="Amazon Aurora">Amazon Aurora</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-1">
+                  Connection String
+                  <span className="text-xs text-gray-500 ml-2">
+                    (Full JDBC URL or connection string)
+                  </span>
+                </label>
+                <textarea
+                  name="cloudConnectionString"
+                  placeholder="e.g., jdbc:postgresql://your-instance.region.rds.amazonaws.com:5432/dbname"
+                  value={formData.cloudConnectionString}
+                  onChange={handleChange}
+                  className="w-full border p-2 rounded h-20"
+                  required
+                />
+              </div>
+
+              <input
+                name="dbUsername"
+                placeholder="DB Username"
+                value={formData.dbUsername}
+                onChange={handleChange}
+                className="w-full border p-2 rounded"
+                required
+              />
+              <input
+                name="dbPassword"
+                type="password"
+                placeholder="DB Password"
+                value={formData.dbPassword}
+                onChange={handleChange}
+                className="w-full border p-2 rounded"
+                required
+              />
+            </>
+          )}
+
+          {/* Local Database Options */}
+          {formData.connectionType === "local" && (
+            <>
+              <input
+                name="dbHost"
+                placeholder="DB Host (e.g., localhost)"
+                value={formData.dbHost}
+                onChange={handleChange}
+                className="w-full border p-2 rounded"
+                required
+              />
+              <input
+                name="dbPort"
+                placeholder="DB Port"
+                value={formData.dbPort}
+                onChange={handleChange}
+                className="w-full border p-2 rounded"
+                required
+              />
+              <input
+                name="dbUsername"
+                placeholder="DB Username"
+                value={formData.dbUsername}
+                onChange={handleChange}
+                className="w-full border p-2 rounded"
+                required
+              />
+              <input
+                name="dbPassword"
+                type="password"
+                placeholder="DB Password"
+                value={formData.dbPassword}
+                onChange={handleChange}
+                className="w-full border p-2 rounded"
+                required
+              />
+              <input
+                name="dbName"
+                placeholder="DB Name"
+                value={formData.dbName}
+                onChange={handleChange}
+                className="w-full border p-2 rounded"
+                required
+              />
+            </>
+          )}
 
           <div className="flex justify-end gap-2 pt-4">
             <button

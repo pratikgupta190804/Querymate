@@ -14,7 +14,7 @@ import com.querymate.QueryMate.exception.ResourceNotFoundException;
 import com.querymate.QueryMate.repo.ProjectRepository;
 import com.querymate.QueryMate.repo.UserRepository;
 import com.querymate.QueryMate.service.ProjectService;
-import com.querymate.QueryMate.service.SchemaService;
+import com.querymate.QueryMate.service.SchemaExtractionService;
 import com.querymate.QueryMate.utils.CryptoUtils;
 
 @Service
@@ -23,14 +23,14 @@ public class ProjectServiceImpl implements ProjectService {
     private final ProjectRepository projectRepository;
     private final UserRepository userRepository;
     private final CryptoUtils cryptoUtils;
-    private final SchemaService schemaService;
+    private final SchemaExtractionService schemaExtractionService;
 
     @Autowired
-    public ProjectServiceImpl(ProjectRepository projectRepository, UserRepository userRepository, CryptoUtils cryptoUtils, SchemaService schemaService) {
+    public ProjectServiceImpl(ProjectRepository projectRepository, UserRepository userRepository, CryptoUtils cryptoUtils, SchemaExtractionService schemaExtractionService) {
         this.projectRepository = projectRepository;
         this.userRepository = userRepository;
         this.cryptoUtils = cryptoUtils;
-        this.schemaService = schemaService;
+        this.schemaExtractionService = schemaExtractionService;
     }
 
     @Override
@@ -45,11 +45,14 @@ public class ProjectServiceImpl implements ProjectService {
         // Save project first to generate the ID
         Project saved = projectRepository.save(project);
 
-        // 🌐 Now extract schema from the actual database (after project has an ID)
-        String extractedSchema = schemaService.getSchemaForProject(saved.getProjectId());
-
-        // Always set schemaText to whatever message was returned
-        saved.setSchemaText(extractedSchema != null ? extractedSchema.trim() : "⚠️ Failed to retrieve schema.");
+        // 🌐 Extract schema from the actual database
+        try {
+            var schemaInfo = schemaExtractionService.extractSchema(saved);
+            String extractedSchema = schemaExtractionService.schemaToJson(schemaInfo);
+            saved.setSchemaText(extractedSchema != null ? extractedSchema.trim() : "{}");
+        } catch (Exception e) {
+            saved.setSchemaText("{}");
+        }
 
         // Save again with schema
         Project updated = projectRepository.save(saved);
@@ -66,10 +69,24 @@ public class ProjectServiceImpl implements ProjectService {
         project.setProjectName(projectDto.getProjectName() != null ? projectDto.getProjectName() : project.getProjectName());
         project.setDescription(projectDto.getDescription() != null ? projectDto.getDescription() : project.getDescription());
         project.setDbType(projectDto.getDbType() != null ? projectDto.getDbType() : project.getDbType());
+        project.setConnectionType(projectDto.getConnectionType() != null ? projectDto.getConnectionType() : project.getConnectionType());
+        project.setCloudProvider(projectDto.getCloudProvider() != null ? projectDto.getCloudProvider() : project.getCloudProvider());
+        
+        if (projectDto.getCloudConnectionString() != null && !projectDto.getCloudConnectionString().isEmpty()) {
+            project.setCloudConnectionString(cryptoUtils.encrypt(projectDto.getCloudConnectionString()));
+        }
+        
         project.setDbHost(projectDto.getDbHost() != null ? projectDto.getDbHost() : project.getDbHost());
         project.setDbPort(projectDto.getDbPort() != null ? projectDto.getDbPort() : project.getDbPort());
-        project.setDbUsername(projectDto.getDbUsername() != null ? projectDto.getDbUsername() : project.getDbUsername());
-        project.setDbPassword(projectDto.getDbPassword() != null ? projectDto.getDbPassword() : project.getDbPassword());
+        
+        // Encrypt credentials if they are being updated
+        if (projectDto.getDbUsername() != null) {
+            project.setDbUsername(cryptoUtils.encrypt(projectDto.getDbUsername()));
+        }
+        if (projectDto.getDbPassword() != null) {
+            project.setDbPassword(cryptoUtils.encrypt(projectDto.getDbPassword()));
+        }
+        
         project.setDbName(projectDto.getDbName() != null ? projectDto.getDbName() : project.getDbName());
 
         // Step 3: Save the updated project
@@ -111,6 +128,8 @@ public class ProjectServiceImpl implements ProjectService {
         dto.setProjectName(project.getProjectName());
         dto.setDescription(project.getDescription());
         dto.setDbType(project.getDbType());
+        dto.setConnectionType(project.getConnectionType());
+        dto.setCloudProvider(project.getCloudProvider());
         dto.setDbHost(project.getDbHost());
         dto.setDbPort(project.getDbPort());
 
@@ -118,10 +137,14 @@ public class ProjectServiceImpl implements ProjectService {
         try {
             dto.setDbUsername(cryptoUtils.decrypt(project.getDbUsername()));
             dto.setDbPassword(cryptoUtils.decrypt(project.getDbPassword()));
+            if (project.getCloudConnectionString() != null && !project.getCloudConnectionString().isEmpty()) {
+                dto.setCloudConnectionString(cryptoUtils.decrypt(project.getCloudConnectionString()));
+            }
         } catch (Exception e) {
             // If decryption fails, the data might not be encrypted - use as is
             dto.setDbUsername(project.getDbUsername());
             dto.setDbPassword(project.getDbPassword());
+            dto.setCloudConnectionString(project.getCloudConnectionString());
         }
 
         dto.setDbName(project.getDbName());
@@ -135,12 +158,19 @@ public class ProjectServiceImpl implements ProjectService {
         project.setProjectName(dto.getProjectName());
         project.setDescription(dto.getDescription());
         project.setDbType(dto.getDbType());
+        project.setConnectionType(dto.getConnectionType());
+        project.setCloudProvider(dto.getCloudProvider());
         project.setDbHost(dto.getDbHost());
         project.setDbPort(dto.getDbPort());
 
         // ✅ Encrypt sensitive fields
         project.setDbUsername(cryptoUtils.encrypt(dto.getDbUsername()));
         project.setDbPassword(cryptoUtils.encrypt(dto.getDbPassword()));
+        
+        // Encrypt cloud connection string if provided
+        if (dto.getCloudConnectionString() != null && !dto.getCloudConnectionString().isEmpty()) {
+            project.setCloudConnectionString(cryptoUtils.encrypt(dto.getCloudConnectionString()));
+        }
 
         project.setDbName(dto.getDbName());
         return project;

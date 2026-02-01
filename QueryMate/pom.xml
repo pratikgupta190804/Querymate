@@ -31,6 +31,11 @@
     </properties>
     <dependencies>
 
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-validation</artifactId>
+        </dependency>
+
         <!-- Google Generative AI (Gemini) -->
         <dependency>
             <groupId>com.google.cloud</groupId>
@@ -127,6 +132,6 @@
                 <artifactId>spring-boot-maven-plugin</artifactId>
             </plugin>
         </plugins>
+        <finalName>querymate-backend</finalName>
     </build>
-
 </project>

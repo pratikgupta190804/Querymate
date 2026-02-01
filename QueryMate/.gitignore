@@ -42,12 +42,15 @@ build/
 
 # Local env files for Spring Boot and React
 .env
+.env.prod
 .env.local
 .env.*.local
 
-# Spring Boot secrets
-/src/main/resources/application.properties
-/src/main/resources/application.yml
+# Don't ignore application.properties template (it now uses env vars)
+# But ignore any local override files
+application-local.properties
+application-dev.properties
+application-prod.properties
 
 # ========================================
 # Log files
